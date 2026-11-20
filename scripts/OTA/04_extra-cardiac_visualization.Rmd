@@ -1,0 +1,1301 @@
+---
+title: "For visualization"
+output: html_document
+---
+
+```{r}
+library(Seurat)
+library(ggrepel)
+
+## ---------------------------------------------------------------------------
+## 1. Load the fully annotated 22-organoid list
+## ---------------------------------------------------------------------------
+
+results_dir <- "./offtarget_results"
+
+annotated_list_path <- file.path(
+  results_dir,
+  "03_cao_fetal_azimuth",
+  "sc_organoid_list_with_fetal_hca_and_cao_labels.rds"
+)
+
+if (!file.exists(annotated_list_path)) {
+  stop("Annotated organoid list not found: ", annotated_list_path)
+}
+
+message("Loading the fully annotated organoid list...")
+org_list <- readRDS(annotated_list_path)
+
+if (!is.list(org_list) || length(org_list) != 22L) {
+  stop("Expected a list containing exactly 22 organoid datasets")
+}
+
+message("Loaded 22 organoid Seurat objects")
+
+
+## ---------------------------------------------------------------------------
+## 2. Confirm that all required annotation fields are available
+## ---------------------------------------------------------------------------
+
+required_metadata <- c(
+  ## Final manuscript/adult-HCA annotation
+  "celltype",
+
+  ## Fetal-HCA classification
+  "fetal_hca_queried",
+  "fetal_hca_consensus",
+  "fetal_hca_vote_support",
+  "fetal_hca_recovered",
+  "offtarget_analysis_status",
+  "sequential_hca_celltype",
+  "sequential_hca_label_source",
+
+  ## Cao fetal multi-organ Azimuth classification
+  "cao_fetal_organ",
+  "cao_fetal_organ_score"
+)
+
+missing_metadata <- lapply(names(org_list), function(dataset) {
+  setdiff(required_metadata, colnames(org_list[[dataset]]@meta.data))
+})
+names(missing_metadata) <- names(org_list)
+
+datasets_with_missing_metadata <- names(missing_metadata)[
+  lengths(missing_metadata) > 0L
+]
+
+if (length(datasets_with_missing_metadata)) {
+  missing_message <- vapply(
+    datasets_with_missing_metadata,
+    function(dataset) {
+      paste0(
+        dataset, ": ",
+        paste(missing_metadata[[dataset]], collapse = ", ")
+      )
+    },
+    character(1)
+  )
+
+  stop(
+    "Required annotation fields are missing:\n",
+    paste(missing_message, collapse = "\n")
+  )
+}
+
+message("All adult-HCA, fetal-HCA and Cao metadata fields are present")
+
+
+## ---------------------------------------------------------------------------
+## 3. Add standardized visualization aliases
+##
+## These aliases do not replace the original fields. They make later plotting
+## code shorter and reduce the chance of accidentally using the wrong label.
+## ---------------------------------------------------------------------------
+
+for (dataset in names(org_list)) {
+  object <- org_list[[dataset]]
+  metadata <- object@meta.data
+
+  object$analysis_dataset <- dataset
+  object$analysis_cell_id <- rownames(metadata)
+  object$analysis_cell_key <- paste(
+    dataset,
+    rownames(metadata),
+    sep = "::"
+  )
+
+  ## Primary adult-HCA label:
+  ## this is the final manuscript consensus
+  object$hca_adult_label <- as.character(metadata$celltype)
+
+  ## Only adult-HCA-unassigned cells were queried against fetal HCA.
+  object$hca_fetal_label <- ifelse(
+    metadata$fetal_hca_queried,
+    as.character(metadata$fetal_hca_consensus),
+    NA_character_
+  )
+
+  object$hca_fetal_status <- as.character(
+    metadata$offtarget_analysis_status
+  )
+
+  ## Cao was run only on cells unresolved by both adult and fetal HCA.
+  object$cao_organ_label <- ifelse(
+    metadata$cao_fetal_queried,
+    as.character(metadata$cao_fetal_organ),
+    NA_character_
+  )
+  object$cao_organ_score <- ifelse(
+    metadata$cao_fetal_queried,
+    as.numeric(metadata$cao_fetal_organ_score),
+    NA_real_
+  )
+
+  org_list[[dataset]] <- object
+  rm(object, metadata)
+}
+
+
+message("The fully annotated 22-organoid list is ready as: org_list")
+
+## ---------------------------------------------------------------------------
+## 4. Apply the organ-only off-target rule and create the four-way status
+##
+## Off-target definition:
+##   - unresolved by both adult and fetal HCA;
+##   - Cao predicted organ is non-Heart with prediction score of at least 0.70.
+## ---------------------------------------------------------------------------
+cao_score_threshold <- 0.70
+heart_label <- "Heart"
+
+
+
+four_way_levels <- c(
+  "Adult-heart assigned",
+  "Fetal cardiac-compatible",
+  "Extra-cardiac assigned",
+  "Unresolved"
+)
+
+for (dataset in names(org_list)) {
+  object <- org_list[[dataset]]
+  metadata <- object@meta.data
+  number_of_cells <- nrow(metadata)
+
+  adult_assigned <- as.character(metadata$celltype) != "unassigned"
+
+  fetal_recovered <-
+    as.character(metadata$celltype) == "unassigned" &
+    metadata$fetal_hca_recovered %in% TRUE
+
+  doubly_unassigned <-
+    as.character(metadata$offtarget_analysis_status) ==
+      "doubly_unassigned"
+
+  cao_decision_fields <- c(
+    "cao_fetal_organ",
+    "cao_fetal_organ_score"
+  )
+
+  organ_only_nonheart_offtarget <- rep(FALSE, number_of_cells)
+
+  if (any(doubly_unassigned)) {
+    query_organ <- as.character(
+      metadata$cao_fetal_organ[doubly_unassigned]
+    )
+    query_organ_score <- as.numeric(
+      metadata$cao_fetal_organ_score[doubly_unassigned]
+    )
+    ## Organ-only off-target definition selected for the main analysis.
+    organ_only_nonheart_offtarget[doubly_unassigned] <-
+      trimws(tolower(query_organ)) != tolower(heart_label) &
+      query_organ_score >= cao_score_threshold
+  }
+
+  ## All other doubly-unassigned cells remain unresolved
+  unresolved <- doubly_unassigned & !organ_only_nonheart_offtarget
+
+  four_way_status <- rep(NA_character_, number_of_cells)
+
+  four_way_status[adult_assigned] <-
+    "Adult-heart assigned"
+
+  four_way_status[fetal_recovered] <-
+    "Fetal cardiac-compatible"
+
+  four_way_status[organ_only_nonheart_offtarget] <-
+    "Extra-cardiac assigned"
+
+  four_way_status[unresolved] <-
+    "Unresolved"
+
+  ## Confirm that the four categories are mutually exclusive and exhaustive.
+  membership_count <-
+    as.integer(adult_assigned) +
+    as.integer(fetal_recovered) +
+    as.integer(organ_only_nonheart_offtarget) +
+    as.integer(unresolved)
+
+  if (any(membership_count != 1L) || anyNA(four_way_status)) {
+    stop(
+      dataset,
+      ": the four-way classification is not mutually exclusive and exhaustive"
+    )
+  }
+
+  ## Retain the established downstream field name so all existing plotting
+  ## blocks use the newly selected organ-only definition consistently.
+  object$cao_confident_nonheart_offtarget <-
+    organ_only_nonheart_offtarget
+
+  object$cao_organ_only_nonheart_offtarget <-
+    organ_only_nonheart_offtarget
+
+  object$cao_offtarget_definition <- ifelse(
+    doubly_unassigned,
+    "organ_nonheart_and_organ_score_ge_0.70",
+    NA_character_
+  )
+
+  object$four_way_analysis_status <- factor(
+    four_way_status,
+    levels = four_way_levels
+  )
+
+  org_list[[dataset]] <- object
+  rm(object, metadata)
+}
+
+```
+
+
+
+```{r}
+# ============================================================
+## Visualization for Figure 4a
+## Four-way composition of every organoid dataset:
+##   1. Adult-heart assigned
+##   2. Fetal cardiac-compatible
+##   3. Extra-cardiac assigned
+##   4. Unresolved
+# ============================================================
+
+suppressPackageStartupMessages({
+  library(ggplot2)
+})
+
+visualization_dir <- file.path(
+  './offtarget_results',
+  "visualizations"
+)
+dir.create(visualization_dir, recursive = TRUE, showWarnings = FALSE)
+
+
+## ---------------------------------------------------------------------------
+## 1. Prepare plot data
+## ---------------------------------------------------------------------------
+
+four_way_counts <- do.call(
+  rbind,
+  lapply(names(org_list), function(dataset) {
+    status <- factor(
+      org_list[[dataset]]$four_way_analysis_status,
+      levels = four_way_levels
+    )
+
+    counts <- table(status)
+
+    data.frame(
+      dataset = dataset,
+      category = four_way_levels,
+      cells = as.integer(counts[four_way_levels]),
+      total_cells = length(status),
+      stringsAsFactors = FALSE
+    )
+  })
+)
+
+four_way_counts$proportion_percent <-
+  100 * four_way_counts$cells / four_way_counts$total_cells
+
+## Validate that all four categories reconstruct every complete dataset.
+count_check <- aggregate(
+  cells ~ dataset,
+  data = four_way_counts,
+  FUN = sum
+)
+
+expected_total_cells <- vapply(
+  org_list,
+  ncol,
+  numeric(1)
+)
+
+stopifnot(
+  all(
+    count_check$cells ==
+      expected_total_cells[count_check$dataset]
+  )
+)
+
+proportion_check <- aggregate(
+  proportion_percent ~ dataset,
+  data = four_way_counts,
+  FUN = sum
+)
+
+if (!all(abs(proportion_check$proportion_percent - 100) < 1e-8)) {
+  stop("The four-category proportions do not sum to 100%")
+}
+
+four_way_counts$category <- factor(
+  four_way_counts$category,
+  levels = four_way_levels
+)
+
+
+
+## Order datasets by the combined proportion of Off-target (Extra-cardiac assigned) + Unresolved cells.
+## The first ggplot y-axis factor level appears at the bottom, so reverse the
+## desired top-to-bottom order when defining the levels.
+offtarget_unresolved_order <- aggregate(
+  proportion_percent ~ dataset,
+  data = four_way_counts[
+    as.character(four_way_counts$category) %in%
+      c("Extra-cardiac assigned", "Unresolved"),
+    ,
+    drop = FALSE
+  ],
+  FUN = sum
+)
+
+colnames(offtarget_unresolved_order)[
+  colnames(offtarget_unresolved_order) == "proportion_percent"
+] <- "offtarget_plus_unresolved_percent"
+
+offtarget_unresolved_order <- offtarget_unresolved_order[
+  order(
+    offtarget_unresolved_order$offtarget_plus_unresolved_percent,
+    offtarget_unresolved_order$dataset
+  ),
+  ,
+  drop = FALSE
+]
+
+dataset_order_top_to_bottom <-
+  offtarget_unresolved_order$dataset
+
+four_way_counts$dataset <- factor(
+  four_way_counts$dataset,
+  levels = rev(dataset_order_top_to_bottom)
+)
+
+
+## ---------------------------------------------------------------------------
+## 2. Generate the figure and save as pdf file
+## ---------------------------------------------------------------------------
+
+four_way_colours <- c(
+  "Adult-heart assigned" = "#4E79A7",
+  "Fetal cardiac-compatible" = "#59A14F",
+  "Extra-cardiac assigned" = "darkgray",
+  "Unresolved" = "lightgray"
+)
+
+four_way_plot <- ggplot(
+  four_way_counts,
+  aes(
+    x = proportion_percent,
+    y = dataset,
+    fill = category
+  )
+) +
+  geom_col(
+    width = 0.78,
+    colour = NA,
+    linewidth = 0,
+    position = position_stack(reverse = TRUE)
+  ) +
+  scale_fill_manual(
+    values = four_way_colours,
+    breaks = four_way_levels,
+    drop = FALSE
+  )  +
+  labs(
+    title = "Sequential classification of cardiac organoid cells",
+    subtitle = paste0(
+      "Each dataset sums to 100%"
+    ),
+    x = "Cells in each dataset (%)",
+    y = NULL,
+    fill = NULL
+  ) +
+  guides(
+    fill = guide_legend(
+      nrow = 1,
+      byrow = TRUE
+    )
+  ) +
+  theme_classic(base_size = 12) +
+  theme(
+    plot.title = element_text(
+      size = 15,
+      face = "bold",
+      hjust = 0
+    ),
+    plot.subtitle = element_text(
+      size = 10.5,
+      colour = "#555555",
+      margin = margin(b = 10)
+    ),
+    axis.text.y = element_text(
+      size = 10,
+      colour = "black"
+    ),
+    axis.text.x = element_text(
+      size = 10,
+      colour = "black"
+    ),
+    axis.title.x = element_text(
+      size = 11.5,
+      margin = margin(t = 8)
+    ),
+    legend.position = "top",
+    legend.justification = "left",
+    legend.text = element_text(size = 10),
+    legend.margin = margin(b = 5),
+    panel.grid.major.x = element_line(
+      colour = "#E5E5E5",
+      linewidth = 0.3
+    ),
+    plot.margin = margin(
+  t = 10,
+  r = 30,
+  b = 10,
+  l = 10,
+  unit = "pt"
+)
+  )+
+  scale_x_continuous(
+  breaks = seq(0, 100, by = 20),
+  expand = expansion(mult = c(0, 0.01))
+) +
+coord_cartesian(
+  xlim = c(0, 100),
+  clip = "off"
+)
+
+four_way_pdf_path <- file.path(
+  visualization_dir,
+  "Figure4a_four_way_cell_classification_by_dataset.pdf"
+)
+
+grDevices::pdf(
+  four_way_pdf_path,
+  width = 12,
+  height = 9,
+  family = "Helvetica",
+  useDingbats = FALSE,
+  onefile = FALSE
+)
+
+print(four_way_plot)
+grDevices::dev.off()
+
+message("Saved editable PDF: ", four_way_pdf_path)
+
+```
+
+
+
+
+
+
+```{r}
+# ============================================================================================
+# Visualization for Supplementary Figure 4c
+#
+# Off-target tissue prevalence across datasets
+# Each bar = number of datasets containing >=1 off-target cell predicted as that tissue
+# ============================================================================================
+
+required_columns <- c(
+  "cao_confident_nonheart_offtarget",
+  "cao_fetal_organ"
+)
+
+missing_columns <- setdiff(
+  required_columns,
+  unique(unlist(lapply(org_list, function(x) colnames(x@meta.data))))
+)
+
+if (length(missing_columns)) {
+  stop(
+    "Required metadata columns are missing: ",
+    paste(missing_columns, collapse = ", ")
+  )
+}
+
+## ---------------------------------------------------------------------------
+## 1. Prepare plot data
+## ---------------------------------------------------------------------------
+
+
+offtarget_tissue_by_dataset <- do.call(
+  rbind,
+  lapply(names(org_list), function(dataset) {
+    metadata <- org_list[[dataset]]@meta.data
+
+    keep <- !is.na(metadata$cao_confident_nonheart_offtarget) &
+      metadata$cao_confident_nonheart_offtarget &
+      !is.na(metadata$cao_fetal_organ) &
+      nzchar(as.character(metadata$cao_fetal_organ))
+
+    selected_tissues <- as.character(metadata$cao_fetal_organ[keep])
+
+    data.frame(
+      dataset = rep(dataset, length(selected_tissues)),
+      tissue = selected_tissues,
+      stringsAsFactors = FALSE
+    )
+  })
+)
+
+if (is.null(offtarget_tissue_by_dataset) ||
+    nrow(offtarget_tissue_by_dataset) == 0) {
+  stop("No confident non-heart off-target cells were found")
+}
+
+# Reduce to presence/absence: one row per dataset–tissue combination
+offtarget_tissue_presence <- unique(offtarget_tissue_by_dataset)
+
+total_datasets <- length(org_list)
+
+offtarget_tissue_prevalence <- aggregate(
+  dataset ~ tissue,
+  data = offtarget_tissue_presence,
+  FUN = function(x) length(unique(x))
+)
+
+colnames(offtarget_tissue_prevalence)[
+  colnames(offtarget_tissue_prevalence) == "dataset"
+] <- "datasets_with_tissue"
+
+offtarget_tissue_prevalence$percentage_of_datasets <-
+  100 * offtarget_tissue_prevalence$datasets_with_tissue / total_datasets
+
+# Rank from most widespread to least widespread;
+# alphabetical ordering is used to break ties
+offtarget_tissue_prevalence <- offtarget_tissue_prevalence[
+  order(
+    -offtarget_tissue_prevalence$datasets_with_tissue,
+    offtarget_tissue_prevalence$tissue
+  ),
+]
+
+offtarget_tissue_prevalence$tissue <- factor(
+  offtarget_tissue_prevalence$tissue,
+  levels = offtarget_tissue_prevalence$tissue
+)
+
+## One named tissue palette is created once and reused by every tissue-level figure.
+tissue_palette_levels <- sort(
+  unique(as.character(offtarget_tissue_by_dataset$tissue))
+)
+
+master_tissue_colors <- tryCatch(
+  {
+    if (exists("scPalette", mode = "function")) {
+      scPalette(length(tissue_palette_levels))
+    } else if (requireNamespace("scCustomize", quietly = TRUE)) {
+      scCustomize::scPalette(length(tissue_palette_levels))
+    } else {
+      stop("scPalette is unavailable")
+    }
+  },
+  error = function(e) {
+    scales::hue_pal()(length(tissue_palette_levels))
+  }
+)
+
+master_tissue_colors <- master_tissue_colors[
+  seq_along(tissue_palette_levels)
+]
+names(master_tissue_colors) <- tissue_palette_levels
+
+print(offtarget_tissue_prevalence)
+
+
+## ---------------------------------------------------------------------------
+## 2. Generate the figure and save as pdf file
+## ---------------------------------------------------------------------------
+
+
+p_offtarget_tissue_prevalence <- ggplot(
+  offtarget_tissue_prevalence,
+  aes(x = tissue, y = datasets_with_tissue,fill = tissue)
+) +
+  geom_col(
+    width = 0.72,
+    color = "black",
+    linewidth = 0.25
+  ) +
+  geom_text(
+    aes(
+      label = paste0(
+        datasets_with_tissue,
+        " (",
+        sprintf("%.1f", percentage_of_datasets),
+        "%)"
+      )
+    ),
+    vjust = -0.35,
+    size = 4
+  )+
+  scale_fill_manual(
+    values = master_tissue_colors,
+    guide = "none",
+    drop = FALSE
+  )+
+  scale_y_continuous(
+    limits = c(0, total_datasets),
+    breaks = seq(0, total_datasets, by = 2),
+    expand = expansion(mult = c(0, 0.10))
+  ) +
+  labs(
+    title = "Prevalence of off-target tissue identities across organoid datasets",
+    x = "Predicted extra-cardiac tissue identity",
+    y = "Number of datasets containing each tissue identity"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1,
+      vjust = 1,
+      size = 11
+    ),
+    axis.text.y = element_text(size = 11),
+    axis.title = element_text(size = 13),
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 11),
+    plot.margin = margin(12, 22, 12, 12)
+  )
+
+ggsave(
+  filename = file.path(
+    visualization_dir,
+    "FigureS4c_offtarget_tissue_prevalence_across_datasets.pdf"
+  ),
+  plot = p_offtarget_tissue_prevalence,
+  width = max(9, 0.65 * nrow(offtarget_tissue_prevalence) + 3),
+  height = 6.5,
+  device = cairo_pdf
+)
+```
+
+
+
+
+
+```{r}
+# ============================================================================================
+# Visualization for Figure 4b
+#
+# Tissue prevalence–abundance summary and bubble plot 
+# ============================================================================================
+
+
+## ---------------------------------------------------------------------------
+## 1. Prepare plot data
+## ---------------------------------------------------------------------------
+
+
+offtarget_tissue_by_dataset <- do.call(
+  rbind,
+  lapply(names(org_list), function(dataset) {
+    metadata <- org_list[[dataset]]@meta.data
+
+    keep <- !is.na(metadata$cao_confident_nonheart_offtarget) &
+      metadata$cao_confident_nonheart_offtarget &
+      !is.na(metadata$cao_fetal_organ) &
+      nzchar(as.character(metadata$cao_fetal_organ))
+
+    selected_tissues <- as.character(metadata$cao_fetal_organ[keep])
+
+    data.frame(
+      dataset = rep(dataset, length(selected_tissues)),
+      tissue = selected_tissues,
+      stringsAsFactors = FALSE
+    )
+  })
+)
+
+
+dataset_sizes <- data.frame(
+  dataset = names(org_list),
+  total_dataset_cells = vapply(org_list, ncol, numeric(1)),
+  stringsAsFactors = FALSE
+)
+
+# Count cells for every observed dataset–tissue combination
+tissue_cell_counts <- aggregate(
+  x = list(offtarget_tissue_cells = rep(
+    1L,
+    nrow(offtarget_tissue_by_dataset)
+  )),
+  by = list(
+    dataset = offtarget_tissue_by_dataset$dataset,
+    tissue = offtarget_tissue_by_dataset$tissue
+  ),
+  FUN = sum
+)
+
+# Create all 22 dataset × tissue combinations so that absent tissues
+# are explicitly represented by zero
+all_tissues <- sort(unique(offtarget_tissue_by_dataset$tissue))
+
+dataset_tissue_grid <- expand.grid(
+  dataset = names(org_list),
+  tissue = all_tissues,
+  stringsAsFactors = FALSE
+)
+
+dataset_tissue_abundance <- merge(
+  dataset_tissue_grid,
+  tissue_cell_counts,
+  by = c("dataset", "tissue"),
+  all.x = TRUE,
+  sort = FALSE
+)
+
+dataset_tissue_abundance$offtarget_tissue_cells[
+  is.na(dataset_tissue_abundance$offtarget_tissue_cells)
+] <- 0L
+
+dataset_tissue_abundance <- merge(
+  dataset_tissue_abundance,
+  dataset_sizes,
+  by = "dataset",
+  all.x = TRUE,
+  sort = FALSE
+)
+
+# Total confident off-target cells in each dataset
+dataset_offtarget_totals <- aggregate(
+  offtarget_tissue_cells ~ dataset,
+  data = dataset_tissue_abundance,
+  FUN = sum
+)
+
+colnames(dataset_offtarget_totals)[2] <- "total_offtarget_cells"
+
+dataset_tissue_abundance <- merge(
+  dataset_tissue_abundance,
+  dataset_offtarget_totals,
+  by = "dataset",
+  all.x = TRUE,
+  sort = FALSE
+)
+
+dataset_tissue_abundance$percentage_of_all_cells <-
+  100 *
+  dataset_tissue_abundance$offtarget_tissue_cells /
+  dataset_tissue_abundance$total_dataset_cells
+
+dataset_tissue_abundance$percentage_within_offtarget <- ifelse(
+  dataset_tissue_abundance$total_offtarget_cells > 0,
+  100 *
+    dataset_tissue_abundance$offtarget_tissue_cells /
+    dataset_tissue_abundance$total_offtarget_cells,
+  NA_real_
+)
+
+# Produce one summary row per tissue
+tissue_summary_list <- lapply(
+  all_tissues,
+  function(current_tissue) {
+    tissue_data <- dataset_tissue_abundance[
+      dataset_tissue_abundance$tissue == current_tissue,
+    ]
+
+    positive <- tissue_data$offtarget_tissue_cells > 0
+
+    data.frame(
+      tissue = current_tissue,
+
+      # Prevalence
+      datasets_with_tissue = sum(positive),
+      percentage_of_datasets =
+        100 * sum(positive) / length(org_list),
+
+      # Total cell count
+      total_offtarget_cells = sum(
+        tissue_data$offtarget_tissue_cells
+      ),
+
+      # Includes zero values from datasets where this tissue is absent
+      median_percentage_all_cells_across_all_datasets =
+        median(tissue_data$percentage_of_all_cells),
+
+      # Abundance when the tissue is present
+      median_percentage_all_cells_when_present =
+        median(tissue_data$percentage_of_all_cells[positive]),
+
+      median_percentage_within_offtarget_when_present =
+        median(
+          tissue_data$percentage_within_offtarget[positive],
+          na.rm = TRUE
+        ),
+
+      maximum_percentage_all_cells =
+        max(tissue_data$percentage_of_all_cells),
+
+      maximum_percentage_within_offtarget =
+        max(
+          tissue_data$percentage_within_offtarget,
+          na.rm = TRUE
+        ),
+
+      stringsAsFactors = FALSE
+    )
+  }
+)
+
+offtarget_tissue_prevalence_abundance <- do.call(
+  rbind,
+  tissue_summary_list
+)
+
+offtarget_tissue_prevalence_abundance <-
+  offtarget_tissue_prevalence_abundance[
+    order(
+      -offtarget_tissue_prevalence_abundance$datasets_with_tissue,
+      -offtarget_tissue_prevalence_abundance$
+        median_percentage_all_cells_when_present,
+      offtarget_tissue_prevalence_abundance$tissue
+    ),
+  ]
+
+print(offtarget_tissue_prevalence_abundance)
+
+
+
+## ---------------------------------------------------------------------------
+## 2. Generate the figure and save as pdf file
+## ---------------------------------------------------------------------------
+
+plot_data <- offtarget_tissue_prevalence_abundance
+
+number_of_tissues <- nrow(plot_data)
+
+## Reuse the master palette generated in the figS4c.
+if (!exists("master_tissue_colors") ||
+    !all(all_tissues %in% names(master_tissue_colors))) {
+  master_tissue_colors <- tryCatch(
+    {
+      if (exists("scPalette", mode = "function")) {
+        scPalette(length(all_tissues))
+      } else if (requireNamespace("scCustomize", quietly = TRUE)) {
+        scCustomize::scPalette(length(all_tissues))
+      } else {
+        stop("scPalette is unavailable")
+      }
+    },
+    error = function(e) {
+      scales::hue_pal()(length(all_tissues))
+    }
+  )
+
+  master_tissue_colors <- master_tissue_colors[
+    seq_along(all_tissues)
+  ]
+  names(master_tissue_colors) <- all_tissues
+}
+
+
+# Descriptive reference lines—not formal biological thresholds
+prevalence_reference <- median(plot_data$datasets_with_tissue)
+
+abundance_reference <- median(
+  plot_data$median_percentage_within_offtarget_when_present
+)
+
+p_tissue_prevalence_abundance <- ggplot(
+  plot_data,
+  aes(
+    x = datasets_with_tissue,
+    y = median_percentage_within_offtarget_when_present,
+    size = total_offtarget_cells,
+    color = tissue
+  )
+)  +
+  geom_point(
+    alpha = 0.85,
+    stroke = 0.4
+  ) +
+  ggrepel::geom_text_repel(
+  aes(label = tissue),
+  size = 3.5,
+  show.legend = FALSE,
+  max.overlaps = Inf,
+  box.padding = 0.5,
+  point.padding = 0.35,
+  min.segment.length = 0,
+  segment.color = "grey55",
+  segment.linewidth = 0.3,
+  seed = 1
+) +
+  scale_color_manual(
+    values = master_tissue_colors,
+    guide = "none"
+  ) +
+  scale_size_continuous(
+    range = c(4, 15),
+    name = "Total cell assigned\nto tissue type"
+  ) +
+  scale_x_continuous(
+    breaks = seq(0, length(org_list), by = 2),
+    limits = c(0, length(org_list)),
+    expand = expansion(mult = c(0.02, 0.06))
+  ) +
+  scale_y_continuous(
+    labels = function(x) paste0(
+      format(round(x, 3), trim = TRUE),
+      "%"
+    ),
+    expand = expansion(mult = c(0.05, 0.20))
+  ) +
+  labs(
+    title = "Prevalence and abundance of off-target tissue identities",
+    x = "Number of datasets with cells assigned to each tissue type",
+    y = "Median proportion of extra-cardiac assigned \ncells in datasets containing each tissue type (%)"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 13),
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 11),
+    legend.position = "right",
+    plot.margin = margin(15, 45, 15, 15)
+  )
+
+ggsave(
+  filename = file.path(
+    visualization_dir,
+    "Figure4b_offtarget_tissue_prevalence_abundance_bubble.pdf"
+  ),
+  plot = p_tissue_prevalence_abundance,
+  width = 11,
+  height = 7.5,
+  device = cairo_pdf
+)
+```
+
+
+
+
+```{r}
+
+# ============================================================================================
+# Visualization for Supplementary Figure 4b
+#
+## Each bar represents one dataset. The denominator is the number of cells in
+## that dataset satisfying the selected organ-only off-target definition
+## Non-empty bars sum to 100%.
+# ============================================================================================
+
+
+## ---------------------------------------------------------------------------
+## 1. Prepare plot data
+## ---------------------------------------------------------------------------
+
+
+required_offtarget_tissue_fields <- c(
+  "cao_confident_nonheart_offtarget",
+  "cao_fetal_organ"
+)
+
+for (dataset in names(org_list)) {
+  missing_fields <- setdiff(
+    required_offtarget_tissue_fields,
+    colnames(org_list[[dataset]]@meta.data)
+  )
+
+  if (length(missing_fields)) {
+    stop(
+      dataset,
+      ": missing fields required for off-target tissue composition: ",
+      paste(missing_fields, collapse = ", ")
+    )
+  }
+}
+
+offtarget_tissue_composition_cells <- do.call(
+  rbind,
+  lapply(names(org_list), function(dataset) {
+    metadata <- org_list[[dataset]]@meta.data
+
+    off_target <-
+      metadata$cao_confident_nonheart_offtarget %in% TRUE
+
+    predicted_tissue <- as.character(
+      metadata$cao_fetal_organ
+    )
+
+    if (any(
+      off_target &
+        (is.na(predicted_tissue) | !nzchar(predicted_tissue))
+    )) {
+      stop(
+        dataset,
+        ": an organ-only off-target cell lacks a predicted tissue"
+      )
+    }
+
+    data.frame(
+      dataset = rep(dataset, sum(off_target)),
+      tissue = predicted_tissue[off_target],
+      stringsAsFactors = FALSE
+    )
+  })
+)
+
+if (is.null(offtarget_tissue_composition_cells) ||
+    nrow(offtarget_tissue_composition_cells) == 0L) {
+  stop("No organ-only off-target cells were available for composition plotting")
+}
+
+
+composition_tissues <- sort(unique(
+  offtarget_tissue_composition_cells$tissue
+))
+
+## Reuse the master palette generated in the figS4c.
+if (!exists("master_tissue_colors") ||
+    !all(composition_tissues %in% names(master_tissue_colors))) {
+  master_tissue_colors <- tryCatch(
+    {
+      if (exists("scPalette", mode = "function")) {
+        scPalette(length(composition_tissues))
+      } else if (requireNamespace("scCustomize", quietly = TRUE)) {
+        scCustomize::scPalette(length(composition_tissues))
+      } else {
+        stop("scPalette is unavailable")
+      }
+    },
+    error = function(e) {
+      scales::hue_pal()(length(composition_tissues))
+    }
+  )
+
+  master_tissue_colors <- master_tissue_colors[
+    seq_along(composition_tissues)
+  ]
+  names(master_tissue_colors) <- composition_tissues
+}
+
+## Count every dataset-tissue combination, explicitly retaining zeros.
+offtarget_tissue_count_observed <- aggregate(
+  x = list(cells = rep(
+    1L,
+    nrow(offtarget_tissue_composition_cells)
+  )),
+  by = list(
+    dataset = offtarget_tissue_composition_cells$dataset,
+    tissue = offtarget_tissue_composition_cells$tissue
+  ),
+  FUN = sum
+)
+
+offtarget_tissue_composition <- merge(
+  expand.grid(
+    dataset = names(org_list),
+    tissue = composition_tissues,
+    stringsAsFactors = FALSE
+  ),
+  offtarget_tissue_count_observed,
+  by = c("dataset", "tissue"),
+  all.x = TRUE,
+  sort = FALSE
+)
+
+offtarget_tissue_composition$cells[
+  is.na(offtarget_tissue_composition$cells)
+] <- 0L
+
+offtarget_totals <- aggregate(
+  cells ~ dataset,
+  data = offtarget_tissue_composition,
+  FUN = sum
+)
+colnames(offtarget_totals)[2] <- "total_offtarget_cells"
+
+offtarget_tissue_composition <- merge(
+  offtarget_tissue_composition,
+  offtarget_totals,
+  by = "dataset",
+  all.x = TRUE,
+  sort = FALSE
+)
+
+offtarget_tissue_composition$proportion_percent <- ifelse(
+  offtarget_tissue_composition$total_offtarget_cells > 0,
+  100 *
+    offtarget_tissue_composition$cells /
+    offtarget_tissue_composition$total_offtarget_cells,
+  0
+)
+
+## Verify the plotted denominator against the Seurat metadata.
+expected_offtarget_totals <- vapply(
+  org_list,
+  function(object) {
+    sum(object$cao_confident_nonheart_offtarget %in% TRUE)
+  },
+  numeric(1)
+)
+
+observed_offtarget_totals <- setNames(
+  offtarget_totals$total_offtarget_cells,
+  offtarget_totals$dataset
+)
+
+if (!all(
+  observed_offtarget_totals[names(org_list)] ==
+    expected_offtarget_totals[names(org_list)]
+)) {
+  stop("Off-target tissue-composition denominators failed validation")
+}
+
+composition_sum_check <- aggregate(
+  proportion_percent ~ dataset,
+  data = offtarget_tissue_composition,
+  FUN = sum
+)
+
+nonempty_datasets <- observed_offtarget_totals[
+  composition_sum_check$dataset
+] > 0
+
+if (any(
+  abs(
+    composition_sum_check$proportion_percent[nonempty_datasets] -
+      100
+  ) > 1e-8
+)) {
+  stop("A non-empty off-target tissue-composition bar does not sum to 100%")
+}
+
+dataset_composition_labels <- setNames(
+  paste0(
+    names(org_list),
+    " (n=",
+    format(
+      expected_offtarget_totals[names(org_list)],
+      big.mark = ","
+    ),
+    ")"
+  ),
+  names(org_list)
+)
+
+## Reuse the exact dataset order from Figure 4a
+shared_dataset_levels <- levels(
+  four_way_counts$dataset
+)
+
+if (is.null(shared_dataset_levels)) {
+  stop(
+    "four_way_counts$dataset is not an ordered factor. ",
+    "Run the four-way ordering block first."
+  )
+}
+
+if (!setequal(
+  unique(as.character(
+    offtarget_tissue_composition$dataset
+  )),
+  shared_dataset_levels
+)) {
+  stop(
+    "The tissue-composition datasets do not match ",
+    "the four-way plot datasets"
+  )
+}
+
+offtarget_tissue_composition$dataset <- factor(
+  as.character(offtarget_tissue_composition$dataset),
+  levels = shared_dataset_levels
+)
+
+offtarget_tissue_composition$tissue <- factor(
+  offtarget_tissue_composition$tissue,
+  levels = composition_tissues
+)
+
+
+## ---------------------------------------------------------------------------
+## 2. Generate the figure and save as pdf file
+## ---------------------------------------------------------------------------
+
+
+p_offtarget_tissue_composition <- ggplot(
+  offtarget_tissue_composition,
+  aes(
+    x = proportion_percent,
+    y = dataset,
+    fill = tissue
+  )
+) +
+  geom_col(
+    width = 0.78,
+    colour = "white",
+    linewidth = 0.16,
+    position = position_stack(reverse = TRUE)
+  ) +
+  scale_fill_manual(
+    values = master_tissue_colors,
+    breaks = composition_tissues,
+    drop = FALSE
+  ) + scale_x_continuous(
+    breaks = seq(0, 100, by = 20),
+    expand = expansion(mult = c(0, 0.01))
+  ) +
+  coord_cartesian(
+    xlim = c(0, 100),
+    clip = "off"
+  ) +
+  scale_y_discrete(
+    labels = dataset_composition_labels
+  ) +
+  labs(
+    title = "Predicted tissue composition of organ-only off-target cells",
+    x = "Proportion of extra-cardiac assigned cells (%)",
+    y = NULL,
+    fill = "Extra-cardiac assigned"
+  ) +
+  guides(
+    fill = guide_legend(
+      nrow = 2,
+      byrow = TRUE
+    )
+  ) +
+  theme_classic(base_size = 12) +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    plot.subtitle = element_text(
+      size = 10.5,
+      colour = "#555555",
+      margin = margin(b = 10)
+    ),
+    axis.text.y = element_text(size = 9.5, colour = "black"),
+    axis.text.x = element_text(size = 10, colour = "black"),
+    axis.title.x = element_text(size = 11.5, margin = margin(t = 8)),
+    legend.position = "top",
+    legend.justification = "left",
+    legend.title = element_text(size = 10, face = "bold"),
+    legend.text = element_text(size = 9.5),
+    legend.key.width = grid::unit(0.75, "cm"),
+    panel.grid.major.x = element_line(
+      colour = "#E5E5E5",
+      linewidth = 0.3
+    ),
+    plot.margin = margin(12, 35, 12, 12)
+  )
+
+ggsave(
+  filename = file.path(
+    visualization_dir,
+    "FigureS4b_offtarget_predicted_tissue_composition_by_dataset.pdf"
+  ),
+  plot = p_offtarget_tissue_composition,
+  width = 14,
+  height = 10,
+  device = cairo_pdf
+)
+
+print(offtarget_tissue_composition, row.names = FALSE)
+```
+
