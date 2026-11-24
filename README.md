@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="cardiacOrganoids: reference-guided assessment of human cardiac organoids across identity, maturity, regional mapping and off-target annotation." width="100%">
+  <img src="docs/assets/banner.png" alt="cardiacOrganoids: reference-guided assessment of human cardiac organoids across identity, maturity, regional mapping and off-target annotation." width="100%">
 </p>
 
 # cardiacOrganoids
