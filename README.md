@@ -87,4 +87,9 @@ These are research analysis scripts with module-specific prerequisites. Some ste
 
 For code questions or reproducibility issues, [open an issue](https://github.com/PYangLab/cardiacOrganoids/issues) with the script name, input structure, error message and R session information.
 
+For questions about the project, please contact:
+
+- **Anna Fredericks:** [afredericks@cmri.org.au](mailto:afredericks@cmri.org.au)
+- **Pengyi Yang:** [pengyi.yang@sydney.edu.au](mailto:pengyi.yang@sydney.edu.au)
+
 The code is distributed under the [GNU General Public License v3.0](LICENSE). External datasets and reference resources retain their own terms; acknowledge their original publications and the methods used in your analysis.
