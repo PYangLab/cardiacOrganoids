@@ -1,31 +1,31 @@
 # Running the analyses
 
-[← Back to the project overview](../README.md)
+[Back to the project overview](../README.md)
 
-These notes describe the scripts as uploaded. Input files are not bundled with the code. Relative paths in the command-line examples are resolved from the working directories shown; replace the example absolute paths with your own.
+Run each command-line example from the directory shown and replace the example absolute paths with your own. Relative paths are resolved from that working directory. You'll need to obtain the input files separately.
 
 ## Input checklist
 
-All organoid lists below are named lists of Seurat objects. Gene names, cell names, RNA layers and metadata must match the assumptions in the relevant scripts.
+Each organoid list must be a named list of Seurat objects. Check that its gene names, cell names, RNA layers and metadata match what the scripts expect.
 
 | Module | Expected inputs | Important details |
 | :--- | :--- | :--- |
-| Identity and maturity | `HCA_v1_sc_processed_filtered.rds`, `HCA_v1_sn_processed_filtered.rds`, `sc_organoids.rds`, `sn_organoids.rds` | Stored under `~/Cardiac_organoids/processed_data/` in the original scripts. Organoids need `celltype`; identity also uses reference `sangerID`, `region`, `donor`, `gender`. |
-| Regional mapping (RM) | `cui_processed.rds`, `fetal_hca_sc_processed.rds`, `fetal_hca_sn_processed.rds`, `sc_organoid_list.rds`, `sn_organoid_list.rds`, `Cardiomyocyte_atrial_and_ventricular_module_gene_sets.xlsx` | Filenames are configured in [`config_AV_mapping.R`](../scripts/RM/config_AV_mapping.R). Only cardiomyocytes are scored. |
-| Off-target annotation (OTA) | `sc_organoid_list.rds`, `hca_sc_processed.rds`, `fetal_hca_sc_processed.rds`; a Cao fetal Azimuth reference directory | Requires exactly 22 uniquely named organoid datasets. The Azimuth reference directory must contain `ref.Rds` and `idx.annoy`. |
+| Identity and maturity | `HCA_v1_sc_processed_filtered.rds`, `HCA_v1_sn_processed_filtered.rds`, `sc_organoids.rds`, `sn_organoids.rds` | The scripts read these from `~/Cardiac_organoids/processed_data/`. Organoids need `celltype`. Identity analysis also uses reference metadata `sangerID`, `region`, `donor`, `gender`. |
+| Regional mapping (RM) | `cui_processed.rds`, `fetal_hca_sc_processed.rds`, `fetal_hca_sn_processed.rds`, `sc_organoid_list.rds`, `sn_organoid_list.rds`, `Cardiomyocyte_atrial_and_ventricular_module_gene_sets.xlsx` | Set filenames in [`config_AV_mapping.R`](../scripts/RM/config_AV_mapping.R). Scoring uses cardiomyocytes only. |
+| Off-target annotation (OTA) | `sc_organoid_list.rds`, `hca_sc_processed.rds`, `fetal_hca_sc_processed.rds` and a Cao fetal Azimuth reference directory | The organoid list must have exactly 22 uniquely named datasets. The Azimuth reference directory needs `ref.Rds` and `idx.annoy`. |
 
-**Filename differences require preparation.** The processing scripts use `sc_organoids.rds` / `sn_organoids.rds`, while RM and OTA expect `sc_organoid_list.rds` / `sn_organoid_list.rds`. OTA expects the adult reference as `hca_sc_processed.rds`. Check that the objects meet each module's requirements before saving under those names; renaming alone does not establish compatibility.
+The processing scripts use `sc_organoids.rds` / `sn_organoids.rds`, while RM and OTA expect `sc_organoid_list.rds` / `sn_organoid_list.rds`. OTA reads the adult reference from `hca_sc_processed.rds`. Before saving objects under these names, check their contents against the requirements above. A matching filename alone does not make an object compatible.
 
-The current upload does not provide a complete data-download manifest or preparation scripts for every external reference and resource. The filenames above identify expected local inputs.
+The repository does not yet include a complete list of data downloads or preparation scripts for every external reference and resource. The filenames above are the local files the scripts expect.
 
 ## Dataset processing
 
-Work through the numbered files in [`scripts/dataset_processing/`](../scripts/dataset_processing) in order, preserving the objects needed by later scripts.
+Work through the numbered scripts in [`scripts/dataset_processing/`](../scripts/dataset_processing) in order. Keep the R objects needed by later steps in your session.
 
-1. **Adult heart reference:** read the HDF/H5AD data, align genes and cells, filter by modality, run dimensionality reduction and scReClassify, and harmonise labels. Replace the `~filepath/` output paths.
-2. **Organoid datasets:** load the study-specific matrices and metadata, then process the single-cell and single-nucleus datasets. Review each study's input paths and format.
-3. **Cell-type annotation:** train modality-specific scClassify models and obtain scClassify, Seurat and SingleR predictions. A consensus requires at least two matching labels. Atrial and ventricular cardiomyocyte annotations are merged to `Cardiomyocyte` for downstream organoid assessment.
-4. **Save objects:** split by time point, chamber or condition. The supplied list contains 22 single-cell and 4 single-nucleus subsets. Review the rare-cell-type handling and enable or adapt the commented `saveRDS()` calls.
+1. Read the adult heart HDF/H5AD data, align genes and cells, and filter each modality. Run dimensionality reduction and scReClassify, then harmonise the labels. Change the `~filepath/` output paths.
+2. Load the organoid matrices and metadata for each study, checking its input paths and file format. Process single-cell and single-nucleus data separately.
+3. Train scClassify models for each modality and obtain predictions from scClassify, Seurat and SingleR. At least two labels must match for a consensus. Merge atrial and ventricular cardiomyocyte labels to `Cardiomyocyte` for the downstream organoid analyses.
+4. Split the organoids by time point, chamber or condition to create 22 single-cell and 4 single-nucleus subsets. Check how rare cell types are handled, then enable or adapt the commented `saveRDS()` calls.
 
 ## Cell identity
 
@@ -35,38 +35,38 @@ From the repository root, load the helper functions:
 source("scripts/identity/01_cepo_functions.R")
 ```
 
-Then work through [`02_cepo_analysis.R`](../scripts/identity/02_cepo_analysis.R) interactively, selecting **either** its single-cell setup block **or** its single-nucleus setup block for each run. Running both setup blocks consecutively replaces the single-cell variables with single-nucleus variables.
+Work through [`02_cepo_analysis.R`](../scripts/identity/02_cepo_analysis.R) interactively for one modality at a time. Choose the single-cell setup block for a single-cell run, or the single-nucleus block for a single-nucleus run. Running both consecutively overwrites the single-cell variables.
 
-The script filters cell types and common genes, calculates and averages reference Cepo scores, and compares them with organoid scores using Pearson correlation. Organoid subsampling uses 10 repetitions with 80% of each cell type retained. The final long-format result is `bootstrap_correlations_df`; save it explicitly if required.
+The script filters cell types and finds common genes before calculating and averaging the reference Cepo scores. It then compares organoid and reference scores with Pearson correlation. For each organoid, it repeats subsampling 10 times, keeping 80% of each cell type in each subsample. Save `bootstrap_correlations_df` if you need the final long-format results on disk.
 
 ## Maturity
 
-[`01_cytotrace.R`](../scripts/maturity/01_cytotrace.R) runs CytoTRACE2 on combined organoid/reference counts separately for single cells and single nuclei. It creates filtered results in `cytotrace2_filtered_sc` and `cytotrace2_filtered_sn`.
+[`01_cytotrace.R`](../scripts/maturity/01_cytotrace.R) combines organoid and reference counts, then runs CytoTRACE2 separately for single cells and single nuclei. The filtered results are `cytotrace2_filtered_sc` and `cytotrace2_filtered_sn`.
 
-For entropy, load the local helper file before working through the analysis:
+Load the entropy helper functions before running the entropy analysis:
 
 ```r
 source("scripts/maturity/02_entropy_functions.R")
 ```
 
-[`03_entropy.R`](../scripts/maturity/03_entropy.R) also loads the external file `clean_nodatasets_060720.RData`, which is **not included**. Update that path and check the resource contents; the human entropy calculation requires `G_list_human`, including its `symbol` and `use_for_entropy` fields. Outputs are held in `combined_entropy_df_sc` and `combined_entropy_df_sn`.
+[`03_entropy.R`](../scripts/maturity/03_entropy.R) also needs `clean_nodatasets_060720.RData`, an external file that is not included here. Update its path and check that it provides `G_list_human` with the `symbol` and `use_for_entropy` fields needed for human entropy calculations. The results are `combined_entropy_df_sc` and `combined_entropy_df_sn`.
 
-CytoTRACE2 scores and expression entropy are complementary transcriptomic measures. Their interpretation as organoid maturity requires biological context.
+CytoTRACE2 scores and expression entropy measure different aspects of the transcriptome. Interpret both alongside biological evidence when assessing organoid maturity.
 
 ## Regional mapping
 
-Run from `scripts/RM/`. Use the same output directory across all steps.
+Run these scripts from `scripts/RM/` and keep the same output directory throughout.
 
 The gene workbook must have a `gene_sets` sheet, two header rows, and six gene columns in this order: Cui atrial, Cui ventricular, fetal HCA single-cell atrial, fetal HCA single-cell ventricular, fetal HCA single-nucleus atrial, fetal HCA single-nucleus ventricular.
 
-Review [`config_AV_mapping.R`](../scripts/RM/config_AV_mapping.R) before running:
+Check the input settings in [`config_AV_mapping.R`](../scripts/RM/config_AV_mapping.R):
 
-- Organoid cardiomyocytes are identified by `celltype == "Cardiomyocyte"`.
+- Organoid cardiomyocytes must have `celltype == "Cardiomyocyte"`.
 - The Cui reference uses `celltype == "Cardiomyocyte"` and `Region` values `LA`, `RA`, `LV`, `RV`.
-- Fetal references use `mid_grain` labels `AtrialCardiomyocytes` / `VentricularCardiomyocytes`; the single-nucleus reference also uses `region`.
-- The fetal HCA reference inputs are expected to contain log1p-CP10K values in the RNA counts layer, with library totals in `n_counts`. The reconstruction helper checks the round trip. Do not substitute a differently encoded matrix without adapting the configuration and preparation.
+- Fetal references use `mid_grain` labels `AtrialCardiomyocytes` / `VentricularCardiomyocytes`. The single-nucleus reference also needs `region`.
+- The fetal HCA references need log1p-CP10K values in the RNA counts layer and library totals in `n_counts`. The helper reconstructs counts and checks the round trip. If your matrix uses a different encoding, adapt the configuration and input preparation first.
 
-The following shell commands run the supplied sequence after these inputs are prepared:
+Once the inputs are ready, run:
 
 ```bash
 cd scripts/RM
@@ -97,19 +97,19 @@ for modality in SC SN; do
 done
 ```
 
-The assignment threshold defaults to `t = 0.10`. A cell is assigned atrial when `A_score - V_score > t` and `A_score > 0`; the ventricular rule is symmetric. Otherwise it is unresolved. Single-cell organoids are scored with Cui and fetal HCA single-cell modules; single-nucleus organoids use fetal HCA single-nucleus modules.
+The default assignment threshold is `t = 0.10`. The script assigns an atrial label when `A_score - V_score > t` and `A_score > 0`. The ventricular rule is symmetric, and cells meeting neither rule are unresolved. Single-cell organoids use Cui and fetal HCA single-cell modules. Single-nucleus organoids use fetal HCA single-nucleus modules.
 
-Results are written under `intermediate/`, `tables/`, `figures/` and `logs/` within the chosen output directory, including reference validation plots, per-cell scores, assignment/proportion tables and organoid assignment plots.
+The scripts save results under `intermediate/`, `tables/`, `figures/` and `logs/` in your output directory. These include reference validation plots, per-cell scores, assignment and proportion tables, and organoid assignment plots.
 
 ## Off-target annotation
 
-Run from `scripts/OTA/`, keeping the same output directory across all steps.
+Run these scripts from `scripts/OTA/` with the same output directory for every step.
 
 Before running, check the input metadata:
 
 - Organoids: `celltype` plus a usable normalised RNA `data` layer.
 - Adult reference: `scReClassify_label`, `age`, `donor`.
-- Fetal reference: `coarse_grain`, `mid_grain`, `fine_grain`, `age`, `week`, `donor`, `cell_or_nuclei`. Every entry must be marked `cell`; the reference must also contain at least 30 PCA dimensions for label transfer.
+- Fetal reference: `coarse_grain`, `mid_grain`, `fine_grain`, `age`, `week`, `donor`, `cell_or_nuclei`. Every entry must be marked `cell`. Label transfer also needs at least 30 PCA dimensions in the reference.
 
 ```bash
 cd scripts/OTA
@@ -128,14 +128,14 @@ Rscript 03_map_doubly_unassigned_with_cao_fetal_azimuth.R \
   --out-dir "$OUT_DIR" --cao-reference-dir "$CAO_REFERENCE_DIR"
 ```
 
-Step 1 validates the prepared files and saves per-dataset queries. Step 2 classifies only organoid cells labelled `unassigned`, using fetal-heart scClassify, Seurat and SingleR predictions. Step 3 maps cells still unassigned to the Cao fetal multi-organ Azimuth reference.
+The first script checks the input files and saves queries for each dataset. The second takes organoid cells labelled `unassigned` and classifies them against the fetal heart reference with scClassify, Seurat and SingleR. Cells still unassigned then pass to the third script for mapping to the Cao fetal multi-organ Azimuth reference.
 
-The stages write input summaries, prediction tables, checkpoints and annotated organoid objects. The final list is saved at:
+The scripts save input summaries, prediction tables, checkpoints and annotated organoid objects. The final organoid list is at:
 
 ```text
 <OUT_DIR>/03_cao_fetal_azimuth/sc_organoid_list_with_fetal_hca_and_cao_labels.rds
 ```
 
-For visualisation, open [`04_extra-cardiac_visualization.Rmd`](../scripts/OTA/04_extra-cardiac_visualization.Rmd), set `results_dir` to the same output directory, and review the chunks before rendering with R Markdown.
+To plot the results, open [`04_extra-cardiac_visualization.Rmd`](../scripts/OTA/04_extra-cardiac_visualization.Rmd) and set `results_dir` to your output directory. Check the chunks before rendering with R Markdown.
 
-Use a new output directory when inputs or analysis settings change: the scripts reuse existing query files, predictions and checkpoints.
+Choose a new output directory if you change the inputs or analysis settings. Otherwise, the scripts reuse existing query files, predictions and checkpoints.
