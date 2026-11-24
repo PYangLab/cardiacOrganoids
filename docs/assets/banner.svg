@@ -1,0 +1,106 @@
+<?xml version="1.0" ?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="380" viewBox="0 0 1200 380" role="img" aria-labelledby="title desc">
+  <title id="title">cardiacOrganoids</title>
+  <desc id="desc">Reference-guided assessment of human cardiac organoids. Identity, maturity, regional mapping and off-target annotation. Decorative cell cluster is a schematic.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1">
+      <stop stop-color="#10243D"/>
+      <stop offset="1" stop-color="#1C3E58"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1200" height="380" rx="24" fill="url(#bg)" stroke="none"/>
+  <circle cx="995" cy="167" r="134" fill="none" stroke="#678999" stroke-opacity="0.3"/>
+  <circle cx="995" cy="167" r="117" fill="#112A43"/>
+  <circle cx="947" cy="83" r="14" fill="#BB812C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="943" cy="80" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="979" cy="83" r="14" fill="#D45973" stroke="#172D48" stroke-width="3"/>
+  <circle cx="975" cy="80" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1011" cy="83" r="14" fill="#238D9C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1007" cy="80" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1043" cy="83" r="14" fill="#6675BB" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1039" cy="80" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="931" cy="111" r="14" fill="#BB812C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="927" cy="108" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="963" cy="111" r="14" fill="#D45973" stroke="#172D48" stroke-width="3"/>
+  <circle cx="959" cy="108" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="995" cy="111" r="14" fill="#238D9C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="991" cy="108" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1027" cy="111" r="14" fill="#6675BB" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1023" cy="108" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1059" cy="111" r="14" fill="#BB812C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1055" cy="108" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="915" cy="139" r="14" fill="#BB812C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="911" cy="136" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="947" cy="139" r="14" fill="#D45973" stroke="#172D48" stroke-width="3"/>
+  <circle cx="943" cy="136" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="979" cy="139" r="14" fill="#238D9C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="975" cy="136" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1011" cy="139" r="14" fill="#6675BB" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1007" cy="136" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1043" cy="139" r="14" fill="#BB812C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1039" cy="136" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1075" cy="139" r="14" fill="#D45973" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1071" cy="136" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="899" cy="167" r="14" fill="#BB812C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="895" cy="164" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="931" cy="167" r="14" fill="#D45973" stroke="#172D48" stroke-width="3"/>
+  <circle cx="927" cy="164" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="963" cy="167" r="14" fill="#238D9C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="959" cy="164" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="995" cy="167" r="14" fill="#6675BB" stroke="#172D48" stroke-width="3"/>
+  <circle cx="991" cy="164" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1027" cy="167" r="14" fill="#BB812C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1023" cy="164" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1059" cy="167" r="14" fill="#D45973" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1055" cy="164" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1091" cy="167" r="14" fill="#238D9C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1087" cy="164" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="915" cy="195" r="14" fill="#D45973" stroke="#172D48" stroke-width="3"/>
+  <circle cx="911" cy="192" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="947" cy="195" r="14" fill="#238D9C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="943" cy="192" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="979" cy="195" r="14" fill="#6675BB" stroke="#172D48" stroke-width="3"/>
+  <circle cx="975" cy="192" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1011" cy="195" r="14" fill="#BB812C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1007" cy="192" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1043" cy="195" r="14" fill="#D45973" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1039" cy="192" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1075" cy="195" r="14" fill="#238D9C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1071" cy="192" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="931" cy="223" r="14" fill="#238D9C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="927" cy="220" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="963" cy="223" r="14" fill="#6675BB" stroke="#172D48" stroke-width="3"/>
+  <circle cx="959" cy="220" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="995" cy="223" r="14" fill="#BB812C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="991" cy="220" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1027" cy="223" r="14" fill="#D45973" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1023" cy="220" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1059" cy="223" r="14" fill="#238D9C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1055" cy="220" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="947" cy="251" r="14" fill="#6675BB" stroke="#172D48" stroke-width="3"/>
+  <circle cx="943" cy="248" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="979" cy="251" r="14" fill="#BB812C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="975" cy="248" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1011" cy="251" r="14" fill="#D45973" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1007" cy="248" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <circle cx="1043" cy="251" r="14" fill="#238D9C" stroke="#172D48" stroke-width="3"/>
+  <circle cx="1039" cy="248" r="4" fill="#F7FBFF" opacity="0.65"/>
+  <text x="48" y="55" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700" fill="#A9CFD8" letter-spacing="2">REFERENCE-GUIDED TRANSCRIPTOMIC ASSESSMENT</text>
+  <text x="46" y="131" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700" fill="#FFFFFF">cardiacOrganoids</text>
+  <text x="48" y="182" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#E8F1F5">Human cardiac organoids</text>
+  <text x="48" y="220" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="400" fill="#B6CEDA">Single-cell &amp; single-nucleus RNA sequencing</text>
+  <text x="48" y="261" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400" fill="#B6CEDA">Four complementary perspectives on organoid fidelity</text>
+  <text x="995" y="320" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="400" fill="#B6CEDA" text-anchor="middle">Organoid schematic</text>
+  <rect x="48" y="302" width="118" height="38" rx="19" fill="#233F56" stroke="none"/>
+  <circle cx="65" cy="321" r="4" fill="#F094AA"/>
+  <text x="78" y="327" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="600" fill="#F5F9FC">Identity</text>
+  <rect x="176" y="302" width="130" height="38" rx="19" fill="#233F56" stroke="none"/>
+  <circle cx="193" cy="321" r="4" fill="#62C8CE"/>
+  <text x="206" y="327" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="600" fill="#F5F9FC">Maturity</text>
+  <rect x="316" y="302" width="213" height="38" rx="19" fill="#233F56" stroke="none"/>
+  <circle cx="333" cy="321" r="4" fill="#B1B9F0"/>
+  <text x="346" y="327" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="600" fill="#F5F9FC">Regional mapping</text>
+  <rect x="539" y="302" width="245" height="38" rx="19" fill="#233F56" stroke="none"/>
+  <circle cx="556" cy="321" r="4" fill="#F1C277"/>
+  <text x="569" y="327" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="600" fill="#F5F9FC">Off-target annotation</text>
+</svg>
