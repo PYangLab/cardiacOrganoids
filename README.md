@@ -88,6 +88,7 @@ If a script fails or you have a question about reproducing an analysis, [open an
 For project questions, contact:
 
 - Anna Fredericks: [afredericks@cmri.org.au](mailto:afredericks@cmri.org.au)
+- Siqu Long: [slong@cmri.org.au](mailto:slong@cmri.org.au)
 - Pengyi Yang: [pengyi.yang@sydney.edu.au](mailto:pengyi.yang@sydney.edu.au)
 
 The code is licensed under the [GNU General Public License v3.0](LICENSE). External datasets and references have their own terms of use. Please cite their original publications and the methods you use.
